@@ -1,7 +1,7 @@
 # Jogo de Damas - TP01
 
 ## Autores
-- Nome do Aluno
+- João Victor, Lya Natsumi e Pedro Henrique
 
 ## Execução
 ```bash
