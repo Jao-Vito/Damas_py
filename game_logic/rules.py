@@ -6,7 +6,18 @@ class GameLogic:
     def is_opponent(self, piece):
         return piece and piece.team != self.turn
 
-    def valid_moves(self, piece):
+    def forced_captures(self):
+        captures = []
+        for row in self.board.grid:
+            for piece in row:
+                if piece and piece.team == self.turn:
+                    moves = self.valid_moves(piece, force=False)
+                    captures += [(piece.row, piece.col, r, c)
+                                for (r, c) in moves if abs(r - piece.row) >= 2]
+        return captures
+
+    def valid_moves(self, piece, force=True):
+
         moves, captures = [], []
         directions = []
 
@@ -53,8 +64,7 @@ class GameLogic:
                         # independente de capturar ou não, não pode pular outra peça na mesma direção
                         break
 
-        return captures + moves
-
+        return captures if force and self.forced_captures() else captures + moves
 
     def make_move(self, from_pos, to_pos):
         from_row, from_col = from_pos
