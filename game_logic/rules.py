@@ -11,59 +11,70 @@ class GameLogic:
         for row in self.board.grid:
             for piece in row:
                 if piece and piece.team == self.turn:
-                    moves = self.valid_moves(piece, force=False)
-                    captures += [(piece.row, piece.col, r, c)
-                                for (r, c) in moves if abs(r - piece.row) >= 2]
+                    piece_captures = self._calculate_piece_captures(piece)
+                    captures.extend((piece.row, piece.col, r, c) for (r, c) in piece_captures)
+        return captures
+
+    def _calculate_piece_captures(self, piece):
+        captures = []
+        directions = [(-1, -1), (-1, 1), (1, -1), (1, 1)] if piece.king else (
+            [(-1, -1), (-1, 1)] if piece.team == "X" else [(1, -1), (1, 1)]
+        )
+
+        for dr, dc in directions:
+            if piece.king:
+                found_opponent = False
+                for step in range(1, 8):
+                    r, c = piece.row + dr * step, piece.col + dc * step
+                    if not (0 <= r < 8 and 0 <= c < 8):
+                        break
+                    
+                    target = self.board.get_piece(r, c)
+                    if target:
+                        if self.is_opponent(target) and not found_opponent:
+                            found_opponent = True
+                            jump_r, jump_c = r + dr, c + dc
+                            if (0 <= jump_r < 8 and 0 <= jump_c < 8 and 
+                                self.board.get_piece(jump_r, jump_c) is None):
+                                captures.append((jump_r, jump_c))
+                        else:
+                            break 
+            else:
+                # Regular piece capture
+                r, c = piece.row + dr, piece.col + dc
+                if 0 <= r < 8 and 0 <= c < 8:
+                    target = self.board.get_piece(r, c)
+                    if target and self.is_opponent(target):
+                        jump_r, jump_c = r + dr, c + dc
+                        if (0 <= jump_r < 8 and 0 <= jump_c < 8 and 
+                            self.board.get_piece(jump_r, jump_c) is None):
+                            captures.append((jump_r, jump_c))
         return captures
 
     def valid_moves(self, piece, force=True):
-
-        moves, captures = [], []
-        directions = []
-
-        if piece.king:
-            directions = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
-        else:
-            directions = [(-1, -1), (-1, 1)] if piece.team == "X" else [(1, -1), (1, 1)]
-
-        for dr, dc in directions:
-            r, c = piece.row + dr, piece.col + dc
+        moves = []
+        captures = self._calculate_piece_captures(piece)  # Use helper method
+        
+        # Only calculate normal moves if no forced captures exist
+        if not force or not self.forced_captures():
+            directions = [(-1, -1), (-1, 1), (1, -1), (1, 1)] if piece.king else (
+                [(-1, -1), (-1, 1)] if piece.team == "X" else [(1, -1), (1, 1)]
+            )
             
-            if not piece.king:
-                # Movimento normal das peças (não-dama), igual seu código atual
-                if 0 <= r < 8 and 0 <= c < 8:
-                    if self.board.get_piece(r, c) is None:
+            for dr, dc in directions:
+                if piece.king:
+                    # King movement
+                    for step in range(1, 8):
+                        r, c = piece.row + dr * step, piece.col + dc * step
+                        if not (0 <= r < 8 and 0 <= c < 8) or self.board.get_piece(r, c):
+                            break
                         moves.append((r, c))
-                    elif self.is_opponent(self.board.get_piece(r, c)):
-                        jump_r, jump_c = r + dr, c + dc
-                        if 0 <= jump_r < 8 and 0 <= jump_c < 8 and self.board.get_piece(jump_r, jump_c) is None:
-                            captures.append((jump_r, jump_c))
-            else:
-                # Movimento da dama: percorrer a diagonal até encontrar peça ou limite
-                step = 1
-                while True:
-                    rr = piece.row + dr * step
-                    cc = piece.col + dc * step
-                    if not (0 <= rr < 8 and 0 <= cc < 8):
-                        break  # saiu do tabuleiro
-
-                    current_piece = self.board.get_piece(rr, cc)
-
-                    if current_piece is None:
-                        # casa vazia -> pode mover aqui
-                        moves.append((rr, cc))
-                        step += 1
-                    else:
-                        # achou uma peça
-                        if self.is_opponent(current_piece):
-                            # Verifica se pode pular (capturar)
-                            jump_r = rr + dr
-                            jump_c = cc + dc
-                            if 0 <= jump_r < 8 and 0 <= jump_c < 8 and self.board.get_piece(jump_r, jump_c) is None:
-                                captures.append((jump_r, jump_c))
-                        # independente de capturar ou não, não pode pular outra peça na mesma direção
-                        break
-
+                else:
+                    # Regular movement
+                    r, c = piece.row + dr, piece.col + dc
+                    if 0 <= r < 8 and 0 <= c < 8 and self.board.get_piece(r, c) is None:
+                        moves.append((r, c))
+        
         return captures if force and self.forced_captures() else captures + moves
 
     def make_move(self, from_pos, to_pos):
@@ -134,4 +145,3 @@ class GameLogic:
         
         # Caso contrário, ninguém venceu ainda
         return None
-
