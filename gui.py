@@ -1,12 +1,10 @@
-# Arquivo: gui.py
-# (Substitua o conteúdo do seu gui.py por este)
-
 import tkinter as tk
 from tkinter import messagebox
 import json
 from board import Board
 from rules import GameLogic
 from network_ws import NetworkWS # Importa o novo handler de rede
+from piece import Piece
 
 class DamasApp:
     def __init__(self, remote_mode=False, uri="ws://localhost:8765"):
@@ -21,10 +19,11 @@ class DamasApp:
         
         self.remote_mode = remote_mode
         self.network = None
-        self.player_team = None # "X" ou "O"
+        self.player_team = None # Será "X" ou "O"
 
         if self.remote_mode:
             self.network = NetworkWS(uri)
+            # A função on_message será o callback para o handler de rede
             self.network.start(self.on_message)
 
         # Botões
@@ -39,9 +38,9 @@ class DamasApp:
         self.canvas.bind("<Button-1>", self.on_click)
 
     def draw_board(self):
-        # ... (seu método draw_board não precisa de alterações)
+        """Desenha o tabuleiro e as peças com base no estado atual de self.logic.board."""
         self.canvas.delete("all")
-        color1, color2 = "#DDB88C", "#A66D4F"
+        color1, color2 = "#DDB88C", "#A66D4F" # Cores padrão
         for row in range(8):
             for col in range(8):
                 x1, y1 = col * 80, row * 80
@@ -50,90 +49,82 @@ class DamasApp:
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill=color)
                 piece = self.logic.board.get_piece(row, col)
                 if piece:
-                    self.canvas.create_oval(x1+10, y1+10, x2-10, y2-10,
-                                            fill="white" if piece.team == "X" else "black")
+                    fill_color = "white" if piece.team == "X" else "black"
+                    self.canvas.create_oval(x1+10, y1+10, x2-10, y2-10, fill=fill_color)
                     if piece.king:
-                        self.canvas.create_text((x1+x2)//2, (y1+y2)//2, text="K",
-                                                fill="red", font=("Arial", 20, "bold"))
+                        self.canvas.create_text((x1+x2)//2, (y1+y2)//2, text="K", fill="red", font=("Arial", 20, "bold"))
         
+        # Destaca movimentos válidos para a peça selecionada
         if self.selected:
             piece = self.logic.board.get_piece(*self.selected)
-            if piece and piece.team == self.logic.turn:
+            if piece:
                 valid_moves = self.logic.valid_moves(piece)
                 for (r, c) in valid_moves:
                     x1, y1 = c * 80, r * 80
                     x2, y2 = x1 + 80, y1 + 80
                     self.canvas.create_rectangle(x1, y1, x2, y2, outline="yellow", width=3)
+        
         self.turn_label.config(text=f"Turno: {self.logic.turn}")
 
-
     def on_click(self, event):
-        # Em modo remoto, só permite clicar se for o turno do jogador
-        if self.remote_mode and self.logic.turn != self.player_team:
+        """Processa o clique do mouse para selecionar ou mover uma peça."""
+        col, row = event.x // 80, event.y // 80
+
+        # Em modo remoto, impede o jogador de jogar fora do seu turno
+        if self.remote_mode and (not self.player_team or self.logic.turn != self.player_team):
             return
 
-        col, row = event.x // 80, event.y // 80
         if self.selected:
-            result = self.logic.make_move(self.selected, (row, col))
-            if result:
-                if self.remote_mode:
-                    # Envia a jogada para o servidor no formato JSON
-                    self.network.send({"tipo": "MOVE", "de": self.selected, "para": (row, col)})
+            from_pos = self.selected
+            to_pos = (row, col)
+            self.selected = None # Deseleciona a peça após a tentativa
 
-                if result == "again":
-                    self.selected = (row, col)
-                else:
-                    self.selected = None
+            if self.remote_mode:
+                # No modo remoto, apenas envia a jogada ao servidor. Não altera o estado local.
+                self.network.send({"tipo": "MOVE", "de": from_pos, "para": to_pos})
             else:
-                self.selected = None  # movimento inválido cancela seleção
-            
-            # A atualização do tabuleiro agora é recebida do servidor
-            if not self.remote_mode:
-                self.check_winner_and_draw()
-        elif self.logic.board.get_piece(row, col):
+                # No modo local, a lógica do jogo é executada diretamente.
+                result = self.logic.make_move(from_pos, to_pos)
+                if result == "again": # Captura múltipla
+                    self.selected = to_pos
+                self.check_winner_and_draw() # Atualiza o tabuleiro localmente
+        else:
+            # Tenta selecionar uma peça
             piece = self.logic.board.get_piece(row, col)
-            if piece.team == self.logic.turn:
+            if piece and piece.team == self.logic.turn:
                 self.selected = (row, col)
-                self.draw_board()
+                self.draw_board() # Redesenha para mostrar os movimentos possíveis
 
     def on_message(self, msg):
-        """Processa mensagens JSON recebidas do servidor."""
+        """Processa mensagens JSON recebidas do servidor (executado na thread de rede)."""
         try:
             data = json.loads(msg)
             
-            # Define o time do jogador com base na primeira mensagem do servidor
             if data.get("tipo") == "info" and "Você é o jogador" in data.get("mensagem", ""):
                 self.player_team = "X" if "X (Brancas)" in data["mensagem"] else "O"
                 self.window.title(f"Damas Online - Você é {self.player_team}")
 
-            # Se for uma atualização de jogo ou fim de jogo, reconstrói o tabuleiro
             elif data.get("tipo") in ["atualizacao", "fim_de_jogo"]:
-                # --- LÓGICA DE ATUALIZAÇÃO CORRIGIDA ---
-                
-                # 1. Atualiza o turno
+                # Atualiza o turno
                 self.logic.turn = data["turno"]
 
-                # 2. Reconstrói o tabuleiro do zero com os dados do servidor
-                from piece import Piece # Importa a classe Piece
+                # Reconstrói o tabuleiro com os dados do servidor
                 new_board = Board()
                 new_board.grid = [[None for _ in range(8)] for _ in range(8)]
                 for r, row_data in enumerate(data["tabuleiro"]):
                     for c, piece_data in enumerate(row_data):
                         if piece_data != 0:
                             p = Piece(piece_data["team"], r, c)
-                            if piece_data["king"]:
+                            if piece_data.get("king", False):
                                 p.promote()
                             new_board.grid[r][c] = p
                 
-                # 3. Substitui o tabuleiro antigo pelo novo
                 self.logic.board = new_board
-                
-                # 4. Redesenha a tela com o novo estado
                 self.draw_board()
 
-                # 5. Se o jogo acabou, mostra a mensagem
                 if data.get("tipo") == "fim_de_jogo" and data.get("vencedor"):
-                    messagebox.showinfo("Fim de Jogo", f"Vitória de {data['vencedor']}!")
+                    # Usa `after` para garantir que a messagebox seja executada na thread principal da GUI
+                    self.window.after(100, lambda: messagebox.showinfo("Fim de Jogo", f"Vitória de {data['vencedor']}!"))
 
             elif data.get("tipo") == "erro":
                 messagebox.showerror("Erro do Servidor", data["mensagem"])
@@ -141,56 +132,27 @@ class DamasApp:
         except (json.JSONDecodeError, KeyError) as e:
             print(f"Erro ao processar mensagem do servidor: {msg} | {e}")
 
-        except (json.JSONDecodeError, KeyError) as e:
-            print(f"Erro ao processar mensagem do servidor: {msg} | {e}")
-
-    def update_game_state(self, state):
-        """Atualiza o tabuleiro e o turno com base nos dados do servidor."""
-        # Recria o tabuleiro a partir dos dados recebidos
-        new_board = Board()
-        new_board.grid = [[None for _ in range(8)] for _ in range(8)]
-        for r, row_data in enumerate(state["tabuleiro"]):
-            for c, piece_data in enumerate(row_data):
-                if piece_data != 0:
-                    piece = self.logic.board.get_piece(r, c) # Reutiliza a peça para manter o objeto
-                    if piece:
-                       piece.team = piece_data["team"]
-                       piece.king = piece_data["king"]
-                       new_board.grid[r][c] = piece
-                    else:
-                        from piece import Piece
-                        p = Piece(piece_data["team"], r, c)
-                        p.king = piece_data["king"]
-                        new_board.grid[r][c] = p
-
-
-        self.logic.board = new_board
-        self.logic.turn = state["turno"]
-        self.draw_board()
-
     def check_winner_and_draw(self):
+        """Verifica se há um vencedor e atualiza o tabuleiro (usado no modo local)."""
         winner = self.logic.is_winner()
         if winner:
             messagebox.showinfo("Fim de Jogo", f"Vitória de {winner}!")
         self.draw_board()
 
     def reset_local(self):
+        """Reinicia um novo jogo no modo local."""
+        self.remote_mode = False
+        self.player_team = None
         self.logic = GameLogic(Board())
         self.selected = None
+        self.window.title("Jogo de Damas")
         self.draw_board()
 
     def reset_remote(self):
+        """Envia um pedido ao servidor para reiniciar o jogo remoto."""
         if self.remote_mode and self.network:
             self.network.send({"tipo": "RESET"})
 
     def run(self):
+        """Inicia o loop principal da aplicação."""
         self.window.mainloop()
-
-if __name__ == '__main__':
-    # Para jogar localmente
-    # app = DamasApp(remote_mode=False)
-    
-    # Para jogar remotamente (inicie duas instâncias)
-    app = DamasApp(remote_mode=True, uri="ws://localhost:8765") # Mude o IP se necessário
-    
-    app.run()
