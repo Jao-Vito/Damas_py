@@ -1,6 +1,3 @@
-# Arquivo: network_ws.py
-# (Novo arquivo que substitui protocol.py)
-
 import asyncio
 import websockets
 import threading

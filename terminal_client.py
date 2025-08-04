@@ -1,4 +1,3 @@
-# Arquivo: terminal_client.py
 import asyncio
 import websockets
 import json

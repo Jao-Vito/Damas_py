@@ -1,6 +1,3 @@
-# Arquivo: server.py
-# (Substitua o conteúdo do seu server.py por este)
-
 import asyncio
 import websockets
 import json
