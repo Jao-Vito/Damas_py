@@ -68,6 +68,7 @@ python Damas_pitao/Damas_py/main.py --remote --uri ws://<ip_do_servidor>:8765
 O projeto utiliza WebSockets para comunicação em tempo real. O protocolo de aplicação define o formato das mensagens trocadas entre cliente e servidor, que são estruturadas em JSON para facilitar a leitura e o processamento. O modelo é cliente-servidor, onde o servidor é a autoridade central que valida as jogadas e distribui o estado do jogo a todos os participantes.
 **Estrutura das Mensagens:**
 Todas as mensagens possuem um campo "tipo" que define sua finalidade.
+
 **A. Mensagens Enviadas pelo Cliente ao Servidor:**
 
 1. Mover Peça (`MOVE`)
@@ -145,7 +146,9 @@ Todas as mensagens possuem um campo "tipo" que define sua finalidade.
 ```
 # 4. Logs de Sessões de Teste
 Abaixo estão exemplos de logs para dois cenários de teste, demonstrando o fluxo de mensagens.
+
 **Cenário 1: Dois Jogadores com Interface Gráfica**
+
 * **Terminal do Servidor:**
 
 ```bash
@@ -155,6 +158,7 @@ Jogador desconectado. Clientes restantes: 0
 ```
 
 * **Ações e Mensagens (Visão Lógica):**
+
 **1.** **Jogador 1 (GUI) conecta-se.**
 
 * ``SERVIDOR -> JOGADOR 1``:``{"tipo": "info", "mensagem": "Você é o jogador X (Brancas). Aguardando oponente."}``
