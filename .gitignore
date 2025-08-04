@@ -1,0 +1,5 @@
+board/__pycache__/board.cpython-313.pyc
+game_logic/__pycache__/rules.cpython-313.pyc
+network/__pycache__/protocol.cpython-313.pyc
+pieces/__pycache__/piece.cpython-313.pyc
+ui/__pycache__/gui.cpython-313.pyc
