@@ -221,9 +221,22 @@ Exemplo de jogada: {"tipo": "MOVE", "de": [5, 0], "para": [4, 1]}
 ```
 
 # 5. Atualizações no Protocolo de Aplicação
-O protocolo implementado foi desenhado para ser simples e eficiente, atendendo diretamente às necessidades do jogo de Damas no modelo cliente-servidor.
-Não foram necessárias extensões ou alterações complexas, pois o conjunto de mensagens definido (``MOVE``, ``RESET``, ``atualizacao``, ``info``, ``erro``, ``fim_de_jogo``) cobre todas as interações fundamentais do jogo:
+Conforme permitido pela especificação do TP3, o protocolo de aplicação base (Checkers Remote Protocol v1.0, baseado em texto plano sobre TCP) foi estendido e aprimorado para uma versão mais robusta e moderna, utilizando JSON sobre WebSockets.
+As seguintes alterações foram realizadas e justificadas abaixo:
+1. **Adoção de JSON em vez de Texto Plano:**
 
-* **Centralização:** O servidor mantém o estado canônico do jogo, prevenindo inconsistências.
-* **Reatividade:** O uso de broadcast_game_state garante que todos os clientes recebam atualizações instantaneamente.
-* **Interoperabilidade:** O formato JSON é universal e permitiu a criação de um cliente de terminal que interage com o mesmo servidor da GUI, validando a robustez do protocolo.
+* **Justificativa:** O formato JSON é menos ambíguo e mais seguro para a troca de dados. Em vez de depender de separadores como espaços e quebras de linha (``\n``), o JSON possui uma estrutura de chave-valor que elimina erros de parsing. Além disso, é nativamente suportado pela maioria das linguagens modernas, facilitando a interoperabilidade.
+
+2. **Estrutura de Mensagem com Campo "tipo":**
+
+* **Justificativa:** A introdução de um campo ``"tipo"`` (ex: ``"MOVE"``, ``"atualizacao"``) torna o protocolo auto-descritivo e extensível. É possível adicionar novos tipos de mensagem no futuro sem quebrar a lógica dos clientes existentes, que podem simplesmente ignorar os tipos que não reconhecem.
+
+3. **Sincronização de Estado Completo (``atualizacao``):**
+
+* **Justificativa:** O protocolo base sugere que o servidor apenas ecoe a jogada (``MOVE``) para o outro cliente. Essa abordagem é frágil e pode levar a dessincronização de estado se uma mensagem for perdida. Nossa implementação envia o estado completo e oficial do tabuleiro após cada jogada. Isso garante que todos os clientes estejam sempre perfeitamente sincronizados com o servidor, que é a fonte da verdade, tornando a aplicação muito mais robusta.
+
+4. **Inclusão de Mensagens de Feedback (``info`` e ``erro``):**
+
+* **Justificativa:** O protocolo base não prevê mensagens de erro ou de informação. A adição desses tipos de mensagem melhora significativamente a experiência do usuário, que recebe feedback claro sobre o que está acontecendo (ex: "Servidor cheio", "Você é o jogador X"), em vez de falhas silenciosas.
+
+Em resumo, as atualizações transformaram um protocolo simples em um sistema de comunicação completo, seguro e resiliente, aproveitando ao máximo a tecnologia de WebSockets exigida pelo TP3 e seguindo as melhores práticas de desenvolvimento de aplicações em rede.
